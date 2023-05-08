@@ -17,8 +17,8 @@
 #define TFT_RST 15
 #define TFT_BL 14
 // MPRLS Sensor
-#define MPRLS_RST 19
-#define MPRLS_EOC 18
+// #define MPRLS_RST 19
+// #define MPRLS_EOC 18
 // Pin 2 MUST not be used !
 /* **************************************************************** */
 /* ********** Don’t change blow ! ******************* */
@@ -119,7 +119,8 @@ void setup()
   Serial.print("Pressure(hPa)\n");
   Serial.print(int(mpr.readPressure()));
   Serial.print("\n");
-  delay(1000);
+  delay(500);
+  reader.drawBMP("heart.bmp", tft, 0, 0);
 }
 void loop()
 {
@@ -151,6 +152,6 @@ void loop()
   Serial.print("Pressure(hPa)\n");
   Serial.print(int(mpr.readPressure()));
   Serial.print("\n");
-  reader.drawBMP("heart.bmp", tft, 0, 0);
-  delay(100);
+  // reader.drawBMP("heart.bmp", tft, 0, 0);
+  // delay(100);
 }
