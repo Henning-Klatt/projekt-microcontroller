@@ -13,16 +13,24 @@ void setupDisplay(Adafruit_ST7789 tft)
 void debugPrint(Adafruit_ST7789 tft, String text, int line)
 {
     // clear display:
-    tft.fillRect(0, 20 * line, 240, 20, ST77XX_BLACK);
+    // tft.fillRect(0, 20 * line, 240, 20, ST77XX_BLACK);
     tft.setTextSize(2);
     tft.setTextColor(ST77XX_GREEN, ST77XX_BLACK);
     tft.setCursor(0, 20 * line);
     tft.print(text + "\n");
 }
 
-void printTimeElapsed(Adafruit_ST7789 tft, String text)
+void bigPrint(Adafruit_ST7789 tft, String text)
 {
+    // clear display:
+    // tft.fillRect(0, 20 * line, 240, 20, ST77XX_BLACK);
+    tft.setTextSize(4);
     tft.setTextColor(ST77XX_GREEN, ST77XX_BLACK);
-    tft.setCursor(0, 50);
+    tft.setCursor(0, 240 / 2);
     tft.print(text);
+}
+
+void clearDisplay(Adafruit_ST7789 tft)
+{
+    tft.fillRect(0, 320, 240, 20, ST77XX_BLACK);
 }

@@ -1,3 +1,9 @@
+#ifndef IO_H
+#define IO_H
+
+#include "Adafruit_SPIFlash.h"
+#include "SdFat.h"
+
 #define PUMP 9            //*put your pin here*
 #define VALVE 10          //*put your pin here*
 #define startButton 12    //*put your pin here*
@@ -12,3 +18,5 @@
 #define TFT_BL 14
 
 void setupIO();
+
+#endif
