@@ -159,7 +159,13 @@ void loop()
 
     HPfilter(&pressure_hPa, &HPbuffer_5Hz[0], &HPbuffer_0_5Hz[0]);
 
-    HPmeasSample[SampleCount] = (uint16_t)pressure_hPa;
+    // HPmeasSample[SampleCount] = (uint16_t)pressure_hPa;
+    // HPmeasSample[SampleCount] = (uint16_t)HPbuffer_5Hz[0];
+    //*(&measSample[0] + writeCount) = (uint16_t)(round(100 * (pressure_hPa - startPressure))); // write samples to the measurement array
+    //*(&HPmeasSample[0] + writeCount) = (int16_t)(round(1000 * HPbuffer_0_5Hz[0]));                  // write samples to the measurement array
+
+    HPmeasSample[SampleCount] = (int16_t)(round(1000 * HPbuffer_0_5Hz[0]));
+    measSample[SampleCount] = (uint16_t)(round(100 * (currentPressure[0] - calibrationPressure))); // write samples to the measurement array
 
     SampleCount++;
 
@@ -220,5 +226,39 @@ void loop()
     }
     // readFlash(fatfs);
     // Serial.println(findHeartRate());
+    // Serial.println(getHeartRate());
+
+    Serial.println("Searching for the peaks in the measurement data ... ");
+
+    int16_t peakMeas[360]; // buffer for the detected peak, maximum 2 minutes with heart rate of 180/min
+
+    int peakMax = 0; // intermediate maximum value of the peak
+    int peakMin = 0; // intermediate minimum value of the peak
+
+    int absMax = 0;      // absolut maximum of the peaks
+    int indexAbsMax = 0; // index of the maximum peak
+
+    // look at the data
+    for (int i = 0; i < sizeof(measSample) / 2; i++)
+    {
+      // and find the peaks, where a certain threshold is crossed. As threshold value use +0.1hPa.
+      if (HPmeasSample[i] > 100) // 0.1 hPa = 100 weil davor *1000 gemacht wurde
+      {
+        // Then when a peak is detected
+        // find the maximum and minimum value, until the next positive peak is detected.
+        if (HPmeasSample[i] > peakMax)
+        {
+          peakMax = HPmeasSample[i];
+          absMax = peakMax;
+          indexAbsMax = i;
+        }
+        if (HPmeasSample[i] < peakMin)
+        {
+          peakMin = HPmeasSample[i];
+        }
+      }
+    }
+    // By subtracting the found maxima and minima the peak is found and the envelope can be calculated.
+    peakMax - peakMin;
   }
 }
