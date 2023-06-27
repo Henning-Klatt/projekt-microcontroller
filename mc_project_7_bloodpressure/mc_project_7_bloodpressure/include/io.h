@@ -4,12 +4,12 @@
 #include "Adafruit_SPIFlash.h"
 #include "SdFat.h"
 
-#define PUMP 9            //*put your pin here*
-#define VALVE 10          //*put your pin here*
-#define startButton 12    //*put your pin here*
-#define interruptButton 7 //*put your pin here*
-#define LED_BTN_RED 5     //*put your pin here*
-#define LED_BTN_GREEN 11  //*put your pin here*
+#define PUMP 9
+#define VALVE 10
+#define startButton 7
+#define interruptButton 12
+#define LED_BTN_RED 11
+#define LED_BTN_GREEN 5
 
 // Waveshare 17344 Display
 #define TFT_CS 17

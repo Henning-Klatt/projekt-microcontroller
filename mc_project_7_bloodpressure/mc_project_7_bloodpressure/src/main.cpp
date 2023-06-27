@@ -29,6 +29,95 @@ Adafruit_MPRLS pressureSensor = Adafruit_MPRLS();
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
+void findHeartbeat()
+{
+  bool flagHeart = false;
+  float absMax = 0;
+  int16_t indexAbsMax = 0;
+  int16_t peakMax = 0;
+  int16_t peakMin = 100;
+  float heartRate = 0;
+
+  int indexSweep = 0;
+  int i = 0;
+
+  int16_t peakMeas[360];     // Measured peaks, for meas time of 2min and heart-rate of 180 -> max. 360 (also enough overhead for false noise-peaks)
+  uint16_t tPeakMeas[360];   // time-stamp of the detected peak
+  int16_t peakMeasTh[360];   // higher threshold of peakdetection, depending on the maxima from peakMeas array
+  uint16_t tPeakMeasTh[360]; // corresponding time stamp
+
+  // reset buffer arrays
+  memset(peakMeas, 0, sizeof(peakMeas));
+  memset(tPeakMeas, 0, sizeof(tPeakMeas));
+  memset(peakMeasTh, 0, sizeof(peakMeas));
+  memset(tPeakMeasTh, 0, sizeof(tPeakMeas));
+
+  while (i < 12000 && indexSweep < 360)
+  {
+
+    while (HPmeasSample[i] > 100)
+    {
+      if (peakMax < HPmeasSample[i])
+      {
+        peakMax = HPmeasSample[i];
+        tPeakMeas[indexSweep] = i;
+      }
+      i++;
+    }
+    while (HPmeasSample[i] <= 100 && i < 12000)
+    {
+      if (peakMin > HPmeasSample[i])
+      {
+        peakMin = HPmeasSample[i];
+      }
+      i++;
+    }
+    peakMeas[indexSweep] = peakMax - peakMin;
+    peakMax = 0;
+    peakMin = 100;
+
+    Serial.println(indexSweep);
+    Serial.println(peakMeas[indexSweep]);
+    indexSweep++;
+  }
+
+  i = 0;
+  while (i < 360)
+  {
+    if (absMax < peakMeas[i])
+    {
+      absMax = peakMeas[i];
+      Serial.println(absMax);
+    }
+    i++;
+  }
+
+  i = 0;
+  for (int a = 0; a < 360; a++)
+  {
+    if (peakMeas[a] > 0.4 * absMax)
+    {
+      peakMeasTh[i] = peakMeas[a];
+      tPeakMeasTh[i] = tPeakMeas[a];
+      Serial.println(peakMeasTh[i]);
+      i++;
+    }
+  }
+
+  Serial.println("done!");
+  Serial.print("Number of Peaks: ");
+  Serial.println(indexSweep);
+  Serial.print("Absolut maxima (hPa): ");
+  Serial.println(((float)absMax) / 1000.0);
+  Serial.print("Index absolut maxima: ");
+  Serial.println(indexAbsMax);
+  Serial.print("Heart-rate /1/min): ");
+  Serial.println(round(heartRate));
+  Serial.println("Finished printing!");
+  Serial.println("\n ################### \n");
+  delay(1000);
+}
+
 void interruptFunction()
 {
   int state = !digitalRead(interruptButton);
@@ -39,6 +128,8 @@ void interruptFunction()
     flagInterrupt = true;
     digitalWrite(VALVE, LOW); // open solanoid -> release air
     digitalWrite(PUMP, LOW);  // disable Pump
+    // clearDisplay(tft);
+    // textPrint(tft, "Cancelled!");
   }
   digitalWrite(LED_BTN_RED, state);
 }
@@ -59,7 +150,7 @@ void greenButton()
 void setup()
 {
   // start serial communication and set baud rate
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("MPRLS Simple Test");
   if (!pressureSensor.begin())
   {
@@ -105,8 +196,9 @@ void loop()
   if (!measurementRunning)
   {
     delay(100);
-    clearDisplay(tft);
+    // clearDisplay(tft);
     debugPrint(tft, "<- Push to start", 1);
+    debugPrint(tft, "<- Push to cancel", 11);
     Serial.println("Press the green button to start!");
     return;
   }
@@ -120,12 +212,13 @@ void loop()
       digitalWrite(PUMP, HIGH);  // activate Pump
       digitalWrite(VALVE, HIGH); // Close Solanoid -> build up pressure
       Serial.println("relative Pressure: " + String(relativePressure));
-      bigPrint(tft, String(relativePressure, 0) + " hPa / " + String(pressureIncrease) + " hPa");
+      textPrint(tft, String(relativePressure, 0) + " / " + String(pressureIncrease) + " hPa");
     }
     else
     {
       digitalWrite(PUMP, LOW); // deactivate Pump
       measurementJustStarted = false;
+      textPrint(tft, "                     ");
     }
   }
 
@@ -188,7 +281,7 @@ void loop()
   {
     measurementRunning = false; // stop measurement -> save to file
     digitalWrite(VALVE, LOW);   // open solanoid -> release air
-    bigPrint(tft, "Saving...");
+    bigPrint(tft, "Saving...    ");
     fatfs.remove("pressureMeasurement.txt");
     myFile = fatfs.open("pressureMeasurement.txt", FILE_WRITE);
     if (myFile)
@@ -260,5 +353,6 @@ void loop()
     }
     // By subtracting the found maxima and minima the peak is found and the envelope can be calculated.
     peakMax - peakMin;
+    findHeartbeat();
   }
 }

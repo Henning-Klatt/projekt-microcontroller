@@ -6,6 +6,7 @@
 
 void setupDisplay(Adafruit_ST7789 tft);
 void debugPrint(Adafruit_ST7789 tft, String text, int line);
+void textPrint(Adafruit_ST7789 tft, String text);
 void bigPrint(Adafruit_ST7789 tft, String text);
 void clearDisplay(Adafruit_ST7789 tft);
 
