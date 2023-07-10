@@ -134,7 +134,7 @@ void findHeartbeat()
     }
   }
 
-  size_t heartrate_index = 0;
+  size_t heartrate_index = indexAbsMax;
 
   /*for (int l = 0; l < NOP; l++)
   {
@@ -176,10 +176,10 @@ void findHeartbeat()
   // go backwards from peak
   for (int a = indexAbsMax; a > 0; a--)
   {
-    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a] / 1000.0) + " < sysTh * absMax: " + sysTh * absMax / 1000.0);
-    if (peakMeasTh[a] / 1000.0 < sysTh * absMax / 1000.0 && peakMeasTh[a] > 0)
+    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a]) + " < sysTh * absMax: " + sysTh * absMax);
+    if (peakMeasTh[a] < sysTh * absMax && peakMeasTh[a] > 0)
     {
-      sysPressure = peakMeasTh[a] / 1000.0;
+      sysPressure = peakMeasTh[a] / 200.0;
       Serial.println("Found systolic value:" + String(sysPressure));
       break;
     }
@@ -188,11 +188,11 @@ void findHeartbeat()
   // go backwards from peak
   for (int a = indexAbsMax; a > 0; a--)
   {
-    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a] / 1000.0) + " < diaTh * absMax: " + diaTh * absMax / 1000.0);
-    if (peakMeasTh[a] / 1000.0 < diaTh * absMax / 1000.0 && peakMeasTh[a] > 0)
+    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a]) + " < diaTh * absMax: " + diaTh * absMax);
+    if (peakMeasTh[a] < diaTh * absMax && peakMeasTh[a] > 0)
     {
 
-      diaPressure = peakMeasTh[a] / 1000.0;
+      diaPressure = peakMeasTh[a] / 200.0;
       Serial.println("Found diastolic value:" + String(diaPressure));
       break;
     }
