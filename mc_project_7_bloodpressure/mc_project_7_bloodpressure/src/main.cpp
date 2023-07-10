@@ -17,7 +17,7 @@
 #include "filter.h"
 #include "measure.h"
 
-#define DEBUG
+// #define DEBUG
 
 // #include "evaluate.h"
 
@@ -55,7 +55,6 @@ void startAdv(void)
 
 void findHeartbeat()
 {
-
   int16_t tPeakMeas[NOP];   // timestamp of the detected peak
   int16_t tPeakMeasTh[NOP]; // timestamp of the buffer
   int16_t peakMeas[NOP];    // buffer for the detected peak, maximum 2 minutes with heart rate of 180/min
@@ -80,18 +79,14 @@ void findHeartbeat()
   memset(peakMeasTh, 0, sizeof(peakMeas));
   memset(tPeakMeasTh, 0, sizeof(tPeakMeas));
 
-  Serial.println("Start searching for heartbeat");
-
   // go through the first 360 values of the filtered data, 360 is the size of the buffer (peakMeas, tPeakMeas, ...)
   while (i < NOS && indexSweep < NOP)
   {
 
     // find the maximum value of the next peak in the filtered data
-    // 0.1 hPa is used as a threshold to decern peaks from valleys
-    // HPmeasSample[i]*100
+    // The value '100' refers to 0.1 hPa and is used as a threshold to decern peaks from valleys
     while (HPmeasSample[i] > 100)
     {
-      // If the maximum value of the peak is found, save the timestamp
       if (peakMax < HPmeasSample[i])
       {
         peakMax = HPmeasSample[i];
@@ -103,15 +98,13 @@ void findHeartbeat()
     // find the minimum of the following valley in the filtered data
     while (HPmeasSample[i] <= 100 && i < NOS)
     {
-      // If the minimum value of the valley is found, save the timestamp
       if (peakMin > HPmeasSample[i])
       {
         peakMin = HPmeasSample[i];
       }
       i++;
     }
-    // Save the difference between the maximum and the minimum of the heartbeat
-    peakMeas[indexSweep] = peakMax - peakMin;
+    peakMeas[indexSweep] = peakMax - peakMin; // Safe the difference between the maximum and the minimum of the heartbeat
     peakMax = 0;
     peakMin = 100;
 
@@ -119,10 +112,9 @@ void findHeartbeat()
     indexSweep++;
   }
 
-  //  Find the largest peak in the previously found peaks
+  // Find the largest peak in the previously found peaks
   for (int l = 0; l < NOP; l++)
   {
-    // If the peak is greater than the previous peak, save the index
     if (absMax < peakMeas[l])
     {
       absMax = peakMeas[l];
@@ -134,8 +126,6 @@ void findHeartbeat()
   i = 0;
   for (int a = 0; a < NOP; a++)
   {
-    delay(1);
-    // If the peak is greater than 40% of the maximum peak, save the peak and the timestamp
     if (peakMeas[a] > 0.4 * absMax)
     {
       peakMeasTh[i] = peakMeas[a];
@@ -144,41 +134,32 @@ void findHeartbeat()
     }
   }
 
-  delay(100);
-
   size_t heartrate_index = 0;
 
-  Serial.println("Find the first peak after the threshold detection");
-  for (int l = 0; l < NOP; l++)
+  /*for (int l = 0; l < NOP; l++)
   {
-    delay(1);
     if (peakMeasTh[l] == 0)
     {
       heartrate_index = l / 2;
-#ifdef DEBUG
-      Serial.println("heartrate_index: " + heartrate_index);
-#endif
 
       break;
     }
-  }
+  }*/
 
-  delay(100);
+  // Serial.print("heart rate index:");
+  // Serial.println(heartrate_index);
 
-  // Calculate the heart rate in bpm
   const int count = 5;
   int16_t time = 0;
 
-  // for (size_t k = heartrate_index; k < heartrate_index + count; k++)
-  for (size_t k = 0; k < count; k++)
+  // Calculate the time between the peaks
+  for (size_t k = heartrate_index; k < heartrate_index + count; k++)
   {
     if (k + 1 >= NOP)
     {
       break;
     }
-    // Calculate the time between the peaks
     time += (tPeakMeasTh[k + 1] - tPeakMeasTh[k]) * measPeriod;
-
 #ifdef DEBUG
     Serial.print("index ");
     Serial.print(k);
@@ -186,15 +167,34 @@ void findHeartbeat()
     Serial.println(time);
 #endif // DEBUG
   }
-
-  delay(100);
   // Calculate the average time between the peaks
   time = time / count;
   // Calculate the heart rate in bpm
-  heartRate = 60000 / time;
+  heartRate = 6000 / time;
 
-  sysPressure = sysTh * (absMax / 100.0);
-  diaPressure = diaTh * (absMax / 100.0);
+  // Calculate the systolic blood pressure
+  // go backwards from peak
+  for (int a = indexAbsMax; a < 0; a--)
+  {
+    if (peakMeasTh[a] < sysTh * absMax)
+    {
+      sysPressure = peakMeasTh[a];
+      break;
+    }
+  }
+  // Calculate the diastolic blood pressure
+  // go backwards from peak
+  for (int a = indexAbsMax; a < 0; a--)
+  {
+    if (peakMeasTh[a] < diaTh * absMax)
+    {
+      sysPressure = peakMeasTh[a];
+      break;
+    }
+  }
+
+  // sysPressure = sysTh * (absMax / 100.0);
+  // diaPressure = diaTh * (absMax / 100.0);
 
   Serial.println("done!");
   Serial.print("Number of Peaks: ");
@@ -203,10 +203,6 @@ void findHeartbeat()
   Serial.println(((float)absMax) / 1000.0);
   Serial.print("Index absolut maxima: ");
   Serial.println(indexAbsMax);
-  Serial.print("Systolic blood pressure (mmHg): ");
-  Serial.println(hPa_mmHg * sysPressure);
-  Serial.print("Diastolic blood pressure (mmHg): ");
-  Serial.println(hPa_mmHg * diaPressure);
   Serial.print("Heart-rate /1/min): ");
   Serial.println(round(heartRate));
   Serial.println("Finished printing!");
