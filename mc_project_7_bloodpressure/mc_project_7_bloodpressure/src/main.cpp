@@ -176,11 +176,11 @@ void findHeartbeat()
   // go backwards from peak
   for (int a = indexAbsMax; a > 0; a--)
   {
-    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a]) + " | sysTh * absMax: " + sysTh * absMax);
-    if (peakMeasTh[a] < sysTh * absMax)
+    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a] / 1000.0) + " < sysTh * absMax: " + sysTh * absMax / 1000.0);
+    if (peakMeasTh[a] / 1000.0 < sysTh * absMax / 1000.0 && peakMeasTh[a] > 0)
     {
-      Serial.println("Found systolic value:" + String(peakMeasTh[a]));
-      sysPressure = peakMeasTh[a];
+      sysPressure = peakMeasTh[a] / 1000.0;
+      Serial.println("Found systolic value:" + String(sysPressure));
       break;
     }
   }
@@ -188,17 +188,15 @@ void findHeartbeat()
   // go backwards from peak
   for (int a = indexAbsMax; a > 0; a--)
   {
-    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a]) + " | sysTh * absMax: " + sysTh * absMax);
-    if (peakMeasTh[a] < diaTh * absMax)
+    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a] / 1000.0) + " < diaTh * absMax: " + diaTh * absMax / 1000.0);
+    if (peakMeasTh[a] / 1000.0 < diaTh * absMax / 1000.0 && peakMeasTh[a] > 0)
     {
-      Serial.println("Found diastolic value:" + String(peakMeasTh[a]));
-      sysPressure = peakMeasTh[a];
+
+      diaPressure = peakMeasTh[a] / 1000.0;
+      Serial.println("Found diastolic value:" + String(diaPressure));
       break;
     }
   }
-
-  // sysPressure = sysTh * (absMax / 100.0);
-  // diaPressure = diaTh * (absMax / 100.0);
 
   Serial.println("done!");
   Serial.print("Number of Peaks: ");
@@ -210,6 +208,10 @@ void findHeartbeat()
   Serial.print("Heart-rate /1/min): ");
   Serial.println(round(heartRate));
   Serial.println("Finished printing!");
+  Serial.print("Systolic pressure (mmHg): ");
+  Serial.println(String(sysPressure, 0));
+  Serial.print("Diastolic pressure (mmHg): ");
+  Serial.println(String(diaPressure, 0));
   Serial.println("\n ################### \n");
   clearDisplay(tft);
   debugPrint(tft, "Heart-rate: " + String(heartRate, 0) + " /1/min", 1);
