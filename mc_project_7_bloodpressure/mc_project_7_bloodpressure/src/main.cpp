@@ -174,20 +174,24 @@ void findHeartbeat()
 
   // Calculate the systolic blood pressure
   // go backwards from peak
-  for (int a = indexAbsMax; a < 0; a--)
+  for (int a = indexAbsMax; a > 0; a--)
   {
+    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a]) + " | sysTh * absMax: " + sysTh * absMax);
     if (peakMeasTh[a] < sysTh * absMax)
     {
+      Serial.println("Found systolic value:" + String(peakMeasTh[a]));
       sysPressure = peakMeasTh[a];
       break;
     }
   }
   // Calculate the diastolic blood pressure
   // go backwards from peak
-  for (int a = indexAbsMax; a < 0; a--)
+  for (int a = indexAbsMax; a > 0; a--)
   {
+    Serial.println("peakMeasTh[a]: " + String(peakMeasTh[a]) + " | sysTh * absMax: " + sysTh * absMax);
     if (peakMeasTh[a] < diaTh * absMax)
     {
+      Serial.println("Found diastolic value:" + String(peakMeasTh[a]));
       sysPressure = peakMeasTh[a];
       break;
     }
