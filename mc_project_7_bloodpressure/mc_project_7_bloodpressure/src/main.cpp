@@ -9,10 +9,15 @@
 #include "SdFat.h"
 #include "Adafruit_SPIFlash.h"
 
+// #include <Adafruit_nRFCrypto.h>
+// #include <bluefruit.h>
+
 #include "io.h"
 #include "display.h"
 #include "filter.h"
 #include "measure.h"
+
+#define DEBUG
 
 // #include "evaluate.h"
 
@@ -29,22 +34,45 @@ Adafruit_MPRLS pressureSensor = Adafruit_MPRLS();
 
 Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
 
+void startAdv(void)
+{
+  // Advertising packet
+  // Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  // Bluefruit.Advertising.addTxPower();
+
+  // Include bleuart 128-bit uuid
+  // Bluefruit.Advertising.addService(bleuart);
+
+  // Secondary Scan Response packet (optional)
+  // Since there is no room for 'Name' in Advertising packet
+  // Bluefruit.ScanResponse.addName();
+  // Bluefruit.setName("Hennings Blutdruckmessgerät");
+  // Bluefruit.Advertising.restartOnDisconnect(true);
+  // Bluefruit.Advertising.setInterval(32, 244); // in unit of 0.625 ms
+  // Bluefruit.Advertising.setFastTimeout(30);   // number of seconds in fast mode
+  // Bluefruit.Advertising.start(0);             // 0 = Don't stop advertising after n seconds
+}
+
 void findHeartbeat()
 {
-  bool flagHeart = false;
-  float absMax = 0;
-  int16_t indexAbsMax = 0;
-  int16_t peakMax = 0;
-  int16_t peakMin = 100;
-  float heartRate = 0;
 
-  int indexSweep = 0;
+  int16_t tPeakMeas[NOP];   // timestamp of the detected peak
+  int16_t tPeakMeasTh[NOP]; // timestamp of the buffer
+  int16_t peakMeas[NOP];    // buffer for the detected peak, maximum 2 minutes with heart rate of 180/min
+  int16_t peakMeasTh[NOP];  // buffer for the detected peak, after threshold detection
+
+  int peakMax = 0;          // intermediate maximum value of the peak
+  int peakMin = 100;        // intermediate minimum value of the peak
+  int absMax = 0;           // absolut maximum of the peaks
+  u_int8_t indexAbsMax = 0; // index of the maximum peak
+
+  bool flagHeart = false; // flag if heartbeat is detected
+  float heartRate = 0;    // final heart rate
+  float diaPressure = 0;  // diastolic blood pressure
+  float sysPressure = 0;  // systolic blood pressure
+
+  int indexSweep = 0; // index sweep to write in the buffer
   int i = 0;
-
-  int16_t peakMeas[360];     // Measured peaks, for meas time of 2min and heart-rate of 180 -> max. 360 (also enough overhead for false noise-peaks)
-  uint16_t tPeakMeas[360];   // time-stamp of the detected peak
-  int16_t peakMeasTh[360];   // higher threshold of peakdetection, depending on the maxima from peakMeas array
-  uint16_t tPeakMeasTh[360]; // corresponding time stamp
 
   // reset buffer arrays
   memset(peakMeas, 0, sizeof(peakMeas));
@@ -52,11 +80,18 @@ void findHeartbeat()
   memset(peakMeasTh, 0, sizeof(peakMeas));
   memset(tPeakMeasTh, 0, sizeof(tPeakMeas));
 
-  while (i < 12000 && indexSweep < 360)
+  Serial.println("Start searching for heartbeat");
+
+  // go through the first 360 values of the filtered data, 360 is the size of the buffer (peakMeas, tPeakMeas, ...)
+  while (i < NOS && indexSweep < NOP)
   {
 
+    // find the maximum value of the next peak in the filtered data
+    // 0.1 hPa is used as a threshold to decern peaks from valleys
+    // HPmeasSample[i]*100
     while (HPmeasSample[i] > 100)
     {
+      // If the maximum value of the peak is found, save the timestamp
       if (peakMax < HPmeasSample[i])
       {
         peakMax = HPmeasSample[i];
@@ -64,45 +99,102 @@ void findHeartbeat()
       }
       i++;
     }
-    while (HPmeasSample[i] <= 100 && i < 12000)
+
+    // find the minimum of the following valley in the filtered data
+    while (HPmeasSample[i] <= 100 && i < NOS)
     {
+      // If the minimum value of the valley is found, save the timestamp
       if (peakMin > HPmeasSample[i])
       {
         peakMin = HPmeasSample[i];
       }
       i++;
     }
+    // Save the difference between the maximum and the minimum of the heartbeat
     peakMeas[indexSweep] = peakMax - peakMin;
     peakMax = 0;
     peakMin = 100;
 
-    Serial.println(indexSweep);
-    Serial.println(peakMeas[indexSweep]);
+    // Serial.println(peakMeas[indexSweep]);
     indexSweep++;
   }
 
-  i = 0;
-  while (i < 360)
+  //  Find the largest peak in the previously found peaks
+  for (int l = 0; l < NOP; l++)
   {
-    if (absMax < peakMeas[i])
+    // If the peak is greater than the previous peak, save the index
+    if (absMax < peakMeas[l])
     {
-      absMax = peakMeas[i];
-      Serial.println(absMax);
+      absMax = peakMeas[l];
+      indexAbsMax = l;
     }
-    i++;
   }
 
+  // Removing false positives due to noise by threshold detection
   i = 0;
-  for (int a = 0; a < 360; a++)
+  for (int a = 0; a < NOP; a++)
   {
+    delay(1);
+    // If the peak is greater than 40% of the maximum peak, save the peak and the timestamp
     if (peakMeas[a] > 0.4 * absMax)
     {
       peakMeasTh[i] = peakMeas[a];
       tPeakMeasTh[i] = tPeakMeas[a];
-      Serial.println(peakMeasTh[i]);
       i++;
     }
   }
+
+  delay(100);
+
+  size_t heartrate_index = 0;
+
+  Serial.println("Find the first peak after the threshold detection");
+  for (int l = 0; l < NOP; l++)
+  {
+    delay(1);
+    if (peakMeasTh[l] == 0)
+    {
+      heartrate_index = l / 2;
+#ifdef DEBUG
+      Serial.println("heartrate_index: " + heartrate_index);
+#endif
+
+      break;
+    }
+  }
+
+  delay(100);
+
+  // Calculate the heart rate in bpm
+  const int count = 5;
+  int16_t time = 0;
+
+  // for (size_t k = heartrate_index; k < heartrate_index + count; k++)
+  for (size_t k = 0; k < count; k++)
+  {
+    if (k + 1 >= NOP)
+    {
+      break;
+    }
+    // Calculate the time between the peaks
+    time += (tPeakMeasTh[k + 1] - tPeakMeasTh[k]) * measPeriod;
+
+#ifdef DEBUG
+    Serial.print("index ");
+    Serial.print(k);
+    Serial.print(": ");
+    Serial.println(time);
+#endif // DEBUG
+  }
+
+  delay(100);
+  // Calculate the average time between the peaks
+  time = time / count;
+  // Calculate the heart rate in bpm
+  heartRate = 60000 / time;
+
+  sysPressure = sysTh * (absMax / 100.0);
+  diaPressure = diaTh * (absMax / 100.0);
 
   Serial.println("done!");
   Serial.print("Number of Peaks: ");
@@ -111,11 +203,41 @@ void findHeartbeat()
   Serial.println(((float)absMax) / 1000.0);
   Serial.print("Index absolut maxima: ");
   Serial.println(indexAbsMax);
+  Serial.print("Systolic blood pressure (mmHg): ");
+  Serial.println(hPa_mmHg * sysPressure);
+  Serial.print("Diastolic blood pressure (mmHg): ");
+  Serial.println(hPa_mmHg * diaPressure);
   Serial.print("Heart-rate /1/min): ");
   Serial.println(round(heartRate));
   Serial.println("Finished printing!");
   Serial.println("\n ################### \n");
+  clearDisplay(tft);
+  debugPrint(tft, "Heart-rate: " + String(heartRate, 0) + " /1/min", 1);
+  debugPrint(tft, "Systolic pressure: " + String(sysPressure, 0) + "mmHg", 3);
+  debugPrint(tft, "Diastolic pressure: " + String(diaPressure, 0) + "mmHg", 5);
+  delay(100);
+  flagInterrupt = false;
   delay(1000);
+  while (flagInterrupt == false)
+  {
+    delay(100);
+    Serial.println("Waiting for red button to be pressed!");
+  }
+  clearDisplay(tft);
+
+#ifdef DEBUG
+  Serial.println("PeakMeas:");
+  print_array(peakMeas, NOP);
+
+  Serial.println("tPeakMeas:");
+  print_array(tPeakMeas, NOP);
+
+  Serial.println("PeakMeasTh:");
+  print_array(peakMeasTh, NOP);
+
+  Serial.println("tPeakMeasTh:");
+  print_array(tPeakMeasTh, NOP);
+#endif // DEBUG
 }
 
 void interruptFunction()
@@ -151,6 +273,11 @@ void setup()
 {
   // start serial communication and set baud rate
   Serial.begin(115200);
+  // Set up Advertising Packet
+  startAdv();
+
+  // Start Advertising
+  // Bluefruit.Advertising.start();
   Serial.println("MPRLS Simple Test");
   if (!pressureSensor.begin())
   {
@@ -173,9 +300,11 @@ void setup()
       delay(10);
     }
   }
+  // tft.init(240, 320);
   tft.init(240, 320);
   setupDisplay(tft);
   tft.setTextSize(3);
+  tft.setRotation(3);
   Serial.println("initialization done.");
   setupIO();
   attachInterrupt(digitalPinToInterrupt(interruptButton), interruptFunction, CHANGE);
@@ -218,7 +347,8 @@ void loop()
     {
       digitalWrite(PUMP, LOW); // deactivate Pump
       measurementJustStarted = false;
-      textPrint(tft, "                     ");
+      clearDisplay(tft);
+      bigPrint(tft, "Testing your strength...");
     }
   }
 
@@ -281,6 +411,7 @@ void loop()
   {
     measurementRunning = false; // stop measurement -> save to file
     digitalWrite(VALVE, LOW);   // open solanoid -> release air
+    clearDisplay(tft);
     bigPrint(tft, "Saving...    ");
     fatfs.remove("pressureMeasurement.txt");
     myFile = fatfs.open("pressureMeasurement.txt", FILE_WRITE);
@@ -310,8 +441,11 @@ void loop()
         myFile.print(",");
       }
       myFile.close();
+      delay(1000);
       Serial.println("done!");
-      bigPrint(tft, "Done         ");
+      delay(1000);
+      clearDisplay(tft);
+      bigPrint(tft, "Done        ");
     }
     else
     {
@@ -322,37 +456,9 @@ void loop()
     // Serial.println(getHeartRate());
 
     Serial.println("Searching for the peaks in the measurement data ... ");
-
-    int16_t peakMeas[360]; // buffer for the detected peak, maximum 2 minutes with heart rate of 180/min
-
-    int peakMax = 0; // intermediate maximum value of the peak
-    int peakMin = 0; // intermediate minimum value of the peak
-
-    int absMax = 0;      // absolut maximum of the peaks
-    int indexAbsMax = 0; // index of the maximum peak
-
-    // look at the data
-    for (int i = 0; i < sizeof(measSample) / 2; i++)
-    {
-      // and find the peaks, where a certain threshold is crossed. As threshold value use +0.1hPa.
-      if (HPmeasSample[i] > 100) // 0.1 hPa = 100 weil davor *1000 gemacht wurde
-      {
-        // Then when a peak is detected
-        // find the maximum and minimum value, until the next positive peak is detected.
-        if (HPmeasSample[i] > peakMax)
-        {
-          peakMax = HPmeasSample[i];
-          absMax = peakMax;
-          indexAbsMax = i;
-        }
-        if (HPmeasSample[i] < peakMin)
-        {
-          peakMin = HPmeasSample[i];
-        }
-      }
-    }
-    // By subtracting the found maxima and minima the peak is found and the envelope can be calculated.
-    peakMax - peakMin;
+    delay(1000);
+    clearDisplay(tft);
+    bigPrint(tft, "Calculating...");
     findHeartbeat();
   }
 }
